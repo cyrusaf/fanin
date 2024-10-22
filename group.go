@@ -2,20 +2,22 @@ package fanin
 
 import (
 	"context"
+	"sync"
 
 	"golang.org/x/sync/errgroup"
 )
 
 type Group[T any] struct {
 	eg      *errgroup.Group
-	results chan T
+	mu      sync.Mutex
+	results []T
 }
 
 func WithContext[T any](ctx context.Context) (*Group[T], context.Context) {
 	eg, ctx := errgroup.WithContext(ctx)
 	return &Group[T]{
 		eg:      eg,
-		results: make(chan T),
+		results: make([]T, 0),
 	}, ctx
 }
 
@@ -25,22 +27,19 @@ func (g *Group[T]) Go(fn func() (*T, error)) {
 		if err != nil {
 			return err
 		}
-		g.results <- *t
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		g.results = append(g.results, *t)
 		return nil
 	})
 }
 
 func (g *Group[T]) Wait() ([]T, error) {
-	var results []T
-	go func() {
-		for result := range g.results {
-			results = append(results, result)
-		}
-	}()
 	err := g.eg.Wait()
-	close(g.results)
 	if err != nil {
 		return nil, err
 	}
-	return results, nil
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.results, nil
 }

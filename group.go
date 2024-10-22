@@ -13,11 +13,11 @@ type Group[T any] struct {
 	results []T
 }
 
-func WithContext[T any](ctx context.Context) (*Group[T], context.Context) {
+func WithContext[T any](ctx context.Context, capacity int) (*Group[T], context.Context) {
 	eg, ctx := errgroup.WithContext(ctx)
 	return &Group[T]{
 		eg:      eg,
-		results: make([]T, 0),
+		results: make([]T, 0, capacity),
 	}, ctx
 }
 

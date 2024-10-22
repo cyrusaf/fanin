@@ -2,6 +2,7 @@ package fanin_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -9,7 +10,8 @@ import (
 )
 
 func TestFanIn(t *testing.T) {
-	f, _ := fanin.WithContext[int](context.Background())
+	ctx := context.Background()
+	f, _ := fanin.WithContext[int](ctx, 0)
 	for i := 0; i < 5; i++ {
 		f.Go(func() (*int, error) {
 			time.Sleep(time.Millisecond * 50)
@@ -31,5 +33,27 @@ func TestFanIn(t *testing.T) {
 		if _, ok := set[i]; !ok {
 			t.Fatalf("expected %d to be in results: %v", i, results)
 		}
+	}
+}
+
+func TestFanInError(t *testing.T) {
+	ctx := context.Background()
+	f, fCtx := fanin.WithContext[int](ctx, 0)
+	for i := 0; i < 5; i++ {
+		f.Go(func() (*int, error) {
+			<-fCtx.Done()
+			return &i, nil
+		})
+	}
+	e := fmt.Errorf("some error")
+	f.Go(func() (*int, error) {
+		return nil, e
+	})
+	results, err := f.Wait()
+	if err != e {
+		t.Fatalf("expected error to be %v but got %v instead", e, err)
+	}
+	if results != nil {
+		t.Fatalf("expected results to be nil, but got %v instead", results)
 	}
 }
